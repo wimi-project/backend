@@ -19,6 +19,18 @@ class Offer(db.Model):
     product = db.relationship("Product", uselist=False)
     commercial_activity = db.relationship("CommercialActivity", uselist=False)
 
+    def __init__(
+        self,
+        product_id: int,
+        commercial_activity_id: int,
+        availability: float,
+        offer_id: int = None
+    ):
+        self.product_id = product_id
+        self.commercial_activity_id = commercial_activity_id
+        self.availability = availability
+        self.offer_id = offer_id
+
     def __repr__(self):
         return (
             "<Offer id Commercial activity {} offers prduct {}>".format(

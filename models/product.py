@@ -14,7 +14,7 @@ class Product(db.Model):
     product_name: str = db.Column(db.String(), nullable=False, unique=True)
     product_description: str = db.Column(db.String(), nullable=False)
     product_image_url: str = db.Column(db.String())
-    feedbacks: List[dict] = relationship("Feedback")
+    feedbacks = relationship("Feedback")
     present_in = db.relationship(
         "CommercialActivity",
         secondary="offer"

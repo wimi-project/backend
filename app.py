@@ -1,9 +1,13 @@
+import datetime
 import os
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from utils.status_codes import StatusCode
 import logging
+
+from typing import Optional
 import json
+from utils.math import compute_square_exponential_mean
 
 level = logging.getLevelName(os.getenv('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('main')
@@ -20,7 +24,7 @@ app.config.from_object(os.environ['APP_SETTINGS'])
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-from models import User, CommercialActivity, Product, Feedback, Visit
+from models import User, CommercialActivity, Product, Feedback, FeedbackType, Visit, Offer
 
 
 @app.route('/')
@@ -201,6 +205,68 @@ def create_visit_for_user(user_id: int, activity_id: int):
             db.session.add(creating_visit)
             db.session.commit()
             return str(creating_visit.visit_id)
+    except Exception as e:
+        logger.error(str(e), exc_info=True)
+        return str(e), StatusCode.ERROR.value
+
+
+@app.route('/feedback/<int:user_id>/<int:product_id>/<int:commercial_activity_id>', methods=['POST'])
+def create_feedback(user_id: int, product_id: int, commercial_activity_id):
+    try:
+        if request.method != 'POST':
+            return StatusCode.BAD_REQUEST.value
+        else:
+            feedback_type = FeedbackType[request.get_json()["feedback_type"]]
+            feedback_comment = (
+                str(request.get_json()["feedback_comment"])
+                if "feedback_comment" in request.get_json()
+                else None
+            )
+            feedback_value = (
+                str(request.get_json()["feedback_comment"])
+                if "feedback_value" in request.get_json()
+                else None
+            )
+            if feedback_value is not None and feedback_type != FeedbackType.queue_awaiting:
+                return "Cannot give a value for this kind of feedback", StatusCode.BAD_REQUEST.value
+            inserting_feedback = Feedback(
+                feedback_type=feedback_type,
+                feedback_comment=feedback_comment,
+                feedback_value=feedback_value,
+                feedback_timestamp=datetime.datetime.utcnow(),
+                user_id=user_id,
+                product_id=product_id
+            )
+            db.session.add(inserting_feedback)
+            last_feedbacks = Feedback.query.filter(
+                Feedback.product_id == product_id and
+                Feedback.feedback_timestamp >= datetime.datetime.utcnow() - datetime.timedelta(hours=2) and
+                (
+                    Feedback.feedback_type == FeedbackType.no_availability or
+                    Feedback.feedback_type == FeedbackType.low_availability
+                )
+            ).order_by(Feedback.feedback_timestamp).limit(20)
+            quantity_feedbacks = [f.feedback_type.value for f in last_feedbacks]
+            availability = compute_square_exponential_mean(quantity_feedbacks)
+            offer: Optional[Offer] = Offer.query.filter(
+                Offer.product_id == product_id and
+                CommercialActivity.commercial_activity_id == commercial_activity_id
+            ).first()
+            if offer is not None:
+                Offer.query.filter(
+                    Offer.offer_id == offer.offer_id
+                ).update({"availability": availability})
+            else:
+                db.session.add(Offer(
+                    product_id=product_id,
+                    commercial_activity_id=commercial_activity_id,
+                    availability=availability
+                ))
+            db.session.commit()
+            return "OK"
+    except KeyError as e:
+        logger.error(str(e), exc_info=True)
+        return str(e), StatusCode.BAD_REQUEST.value
     except Exception as e:
         logger.error(str(e), exc_info=True)
         return str(e), StatusCode.ERROR.value

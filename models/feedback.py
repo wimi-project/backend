@@ -8,9 +8,9 @@ from app import db
 
 
 class FeedbackType(enum.Enum):
-    low_availability = 0
     no_availability = 1
-    queue_awaiting = 2
+    low_availability = 2
+    queue_awaiting = 3
 
 
 @dataclass
@@ -33,14 +33,14 @@ class Feedback(db.Model):
         feedback_type,
         feedback_value,
         feedback_timestamp=datetime.datetime.utcnow(),
-        comment=None,
+        feedback_comment=None,
         user_id=None,
         product_id=None
     ):
         self.feedback_type = feedback_type
         self.feedback_value = feedback_value
         self.feedback_timestamp = feedback_timestamp
-        self.comment = comment
+        self.comment = feedback_comment
         self.user_id = user_id
         self.product_id = product_id
 
