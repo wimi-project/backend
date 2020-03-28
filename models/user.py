@@ -1,36 +1,47 @@
-from app import db
-from sqlalchemy.orm import relationship
+from dataclasses import dataclass
 from typing import List
-from utils.encoders import custom_alchemy_encoder
-import json
+
+from sqlalchemy.orm import relationship
+
+from app import db
+from models import Feedback
 
 
+@dataclass
 class User(db.Model):
+
     __tablename__ = 'user'
 
-    user_id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(), nullable=False)
-    surname = db.Column(db.String(), nullable=False)
-    email = db.Column(db.String(), nullable=False)
-    password = db.Column(db.String())
-    salt = db.Column(db.String())
-    position_lat = db.Column(db.Float)
-    position_lon = db.Column(db.Float)
-    feedbacks = relationship("Feedback")
+    user_id: int = db.Column(db.Integer, primary_key=True)
+    name: str = db.Column(db.String(), nullable=False)
+    surname: str = db.Column(db.String(), nullable=False)
+    email: str = db.Column(db.String(), nullable=False, unique=True)
+    password: str = db.Column(db.String())
+    salt: str = db.Column(db.String())
+    position_lat: float = db.Column(db.Float)
+    position_lon: float = db.Column(db.Float)
+
+    visited_commercial_activities = relationship(
+        "CommercialActivity",
+        secondary="visit",
+    )
+    feedbacks: List[dict] = relationship("Feedback")
 
     def __init__(
         self,
         name,
         surname,
         email,
-        password,
-        salt,
-        position_lat,
-        position_lon
+        user_id=None,
+        password=None,
+        salt=None,
+        position_lat=None,
+        position_lon=None
     ):
         self.name = name
         self.surname = surname
         self.email = email
+        self.user_id = user_id
         self.password = password
         self.salt = salt
         self.position_lat = position_lat
@@ -38,13 +49,3 @@ class User(db.Model):
 
     def __repr__(self):
         return '<User id {}>'.format(self.id)
-
-    def to_json(self, include_feedbacks: bool) -> str:
-        expand_additional: List[str] = ["feedbacks"] if include_feedbacks else []
-        return (
-            json.dumps(
-                self,
-                cls=custom_alchemy_encoder(False, expand_additional),
-                check_circular=False
-            )
-        )

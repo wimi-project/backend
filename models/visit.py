@@ -14,5 +14,17 @@ class Visit(db.Model):
     user = db.relationship("User", uselist=False)
     commercial_activity = db.relationship("CommercialActivity", uselist=False)
 
+    def __init__(
+            self,
+            user_id,
+            commercial_activity_id,
+            visit_time=datetime.datetime.now(),
+            visit_id=None,
+    ):
+        self.user_id = user_id
+        self.comercial_activity_id = commercial_activity_id
+        self.visit_time = visit_time
+        self.visit_id = visit_id
+
     def __repr__(self):
         return "<Visit id {} by user {}>".format(self.visit_id, self.user_id)
