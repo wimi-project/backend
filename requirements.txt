@@ -2,3 +2,4 @@ flask_sqlalchemy
 sqlalchemy
 Flask-Migrate
 flask-script
+geopy

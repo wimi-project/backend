@@ -1,13 +1,15 @@
 import datetime
+import logging
 import os
+from typing import Optional, List
+
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from utils.status_codes import StatusCode
-import logging
+from geopy.distance import distance
 
-from typing import Optional
-import json
+from utils.enums import Availability
 from utils.math import compute_square_exponential_mean
+from utils.status_codes import StatusCode
 
 level = logging.getLevelName(os.getenv('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('main')
@@ -153,12 +155,12 @@ def commercial_activities():
 def get_or_delete_commercial_activity(activity_id: int):
     try:
         if request.method == 'GET':
-            fetched_activities = (
+            fetched_activity: CommercialActivity = (
                 CommercialActivity.query.filter(
                     CommercialActivity.commercial_activity_id == activity_id
                 ).first()
             )
-            return jsonify(fetched_activities)
+            return jsonify(fetched_activity)
         elif request.method == 'DELETE':
             CommercialActivity.query.filter(
                 CommercialActivity.commercial_activity_id == activity_id
@@ -167,6 +169,34 @@ def get_or_delete_commercial_activity(activity_id: int):
             return "OK", StatusCode.OK.value
         else:
             return StatusCode.BAD_REQUEST.value
+    except Exception as e:
+        logger.error(str(e), exc_info=True)
+        return str(e), StatusCode.ERROR.value
+
+
+@app.route('/commercial-activity-products/<int:activity_id>', methods=['GET'])
+def get_product_for_activity(activity_id: int):
+    try:
+        if request.method == 'GET':
+            fetched_activity: CommercialActivity = (
+                CommercialActivity.query.filter(
+                    CommercialActivity.commercial_activity_id == activity_id
+                ).first()
+            )
+            for product in fetched_activity.products:
+                offer = Offer.query.filter(
+                    Offer.product_id == product.product_id and
+                    Offer.commercial_activity_id == activity_id
+                ).first()
+                if offer is None:
+                    product.availability = Availability.no_availability
+                else:
+                    product.availability = (
+                        Availability.low_availability if offer.availability >= 1.4 else Availability.no_availability
+                    )
+            return jsonify(fetched_activity.serialize(include_products=True))
+        else:
+            return "method not allowed", StatusCode.NOT_ALLOWED.value
     except Exception as e:
         logger.error(str(e), exc_info=True)
         return str(e), StatusCode.ERROR.value
@@ -247,6 +277,8 @@ def create_feedback(user_id: int, product_id: int, commercial_activity_id):
                 )
             ).order_by(Feedback.feedback_timestamp).limit(20)
             quantity_feedbacks = [f.feedback_type.value for f in last_feedbacks]
+            for i in quantity_feedbacks:
+                logger.error(i)
             availability = compute_square_exponential_mean(quantity_feedbacks)
             offer: Optional[Offer] = Offer.query.filter(
                 Offer.product_id == product_id and
@@ -264,6 +296,46 @@ def create_feedback(user_id: int, product_id: int, commercial_activity_id):
                 ))
             db.session.commit()
             return "OK"
+    except KeyError as e:
+        logger.error(str(e), exc_info=True)
+        return str(e), StatusCode.BAD_REQUEST.value
+    except Exception as e:
+        logger.error(str(e), exc_info=True)
+        return str(e), StatusCode.ERROR.value
+
+
+@app.route('/near-product-availability/<float:lat>/<float:lon>/<float:radius_m>/<int:product_id>', methods=['GET'])
+def get_near_product_availability(
+    lat: float,
+    lon: float,
+    radius_m: float,
+    product_id: int,
+):
+    results: List[dict] = []
+    try:
+        if request.method != 'GET':
+            return "method not allowed", StatusCode.NOT_ALLOWED.value
+        else:
+            near_activities = []
+            # TODO: Rework
+            activities: List[CommercialActivity] = CommercialActivity.query.all()
+            for activity in activities:
+                if distance(
+                    (activity.position_lat, activity.position_lon),
+                    (lat, lon)
+                ).meters <= radius_m and product_id in [p.product_id for p in activity.products]:
+                    near_activities.append(activity)
+
+            for activity in near_activities:
+                offer: Offer = Offer.query.filter(
+                    Offer.product_id == product_id and
+                    Offer.commercial_activity_id == activity.commercial_activity_id
+                ).first()
+                if offer.availability >= 1.4:
+                    adding_dict = activity.serialize()
+                    adding_dict["product_availability"] = Availability.low_availability.name
+                    results.append(adding_dict)
+            return jsonify(results)
     except KeyError as e:
         logger.error(str(e), exc_info=True)
         return str(e), StatusCode.BAD_REQUEST.value

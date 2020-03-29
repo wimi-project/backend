@@ -1,9 +1,12 @@
 import json
+from dataclasses import dataclass
+
+from sqlalchemy.orm import relationship
 
 from app import db
-from dataclasses import dataclass
-from typing import List
-from sqlalchemy.orm import relationship
+from utils.enums import Availability
+
+from typing import Optional
 
 
 @dataclass
@@ -19,6 +22,7 @@ class Product(db.Model):
         "CommercialActivity",
         secondary="offer"
     )
+    availability: Optional[Availability] = None
 
     def __init__(
         self,
@@ -35,11 +39,17 @@ class Product(db.Model):
     def __repr__(self):
         return "<Product id {} named {}>".format(self.id, self.product_name)
 
-    def to_json(self) -> str:
-        return (
-            json.dumps(
-                self,
-                cls=[],
-                check_circular=False
-            )
+    def serialize(self, include_feedbacks: bool = False, include_availability: bool = False) -> dict:
+        serialized_dict = (
+            {
+                "product_id": self.product_id,
+                "product_name": self.product_name,
+                "product_description": self.product_description,
+                "product_image_url": self.product_image_url,
+            }
         )
+        if include_feedbacks:
+            serialized_dict["feedbacks"] = self.feedbacks
+        if include_availability:
+            serialized_dict["availability"] = self.availability.name
+        return serialized_dict

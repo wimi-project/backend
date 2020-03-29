@@ -25,7 +25,7 @@ class User(db.Model):
         "CommercialActivity",
         secondary="visit",
     )
-    feedbacks: List[dict] = relationship("Feedback")
+    feedbacks = relationship("Feedback")
 
     def __init__(
         self,
