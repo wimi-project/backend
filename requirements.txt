@@ -3,3 +3,5 @@ sqlalchemy
 Flask-Migrate
 flask-script
 geopy
+psycopg2-binary
+gunicorn

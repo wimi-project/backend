@@ -26,6 +26,9 @@ app.config.from_object(os.environ['APP_SETTINGS'])
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+if __name__ == "__main__":
+    app.run(host='0.0.0.0')
+
 from models import User, CommercialActivity, Product, Feedback, FeedbackType, Visit, Offer
 
 
@@ -342,3 +345,4 @@ def get_near_product_availability(
     except Exception as e:
         logger.error(str(e), exc_info=True)
         return str(e), StatusCode.ERROR.value
+
