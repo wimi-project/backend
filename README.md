@@ -1,2 +1,2 @@
 # backend
-Wimp project backend
+Wimi project backend
